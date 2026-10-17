@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Modifié
 - Affichage des alertes par date de création (la plus récente en haut) plutôt que par ordre de priorité.
+- Masquage du suffixe de domaine (@domaine) sur les adresses email affichées pour alléger l'interface.
 
 ## [0.2.0] - 2026-10-15
 

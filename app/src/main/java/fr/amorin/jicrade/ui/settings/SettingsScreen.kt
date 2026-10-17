@@ -62,6 +62,7 @@ import fr.amorin.jicrade.BuildConfig
 import fr.amorin.jicrade.data.local.NotificationMode
 import fr.amorin.jicrade.data.local.PollingMode
 import fr.amorin.jicrade.ui.common.formatDateTime
+import fr.amorin.jicrade.ui.common.stripEmailDomain
 import fr.amorin.jicrade.sync.Notifications
 
 import android.media.RingtoneManager
@@ -117,8 +118,8 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
         Column(Modifier.padding(padding).fillMaxSize().verticalScroll(rememberScrollState())) {
             val s = state.session
             ListItem(
-                headlineContent = { Text(s?.displayName ?: "") },
-                supportingContent = { Text("${s?.credentials?.email ?: ""} · ${s?.site ?: ""}.atlassian.net") },
+                headlineContent = { Text(s?.displayName?.stripEmailDomain() ?: "") },
+                supportingContent = { Text("${s?.credentials?.email?.stripEmailDomain() ?: ""} · ${s?.site ?: ""}.atlassian.net") },
             )
             ListItem(
                 headlineContent = { Text("Team") },
