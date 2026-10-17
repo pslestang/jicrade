@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sélecteur de sonnerie d'alerte directement dans l'application avec aperçu audio instantané dès la sélection d'une sonnerie.
 - Option pour faire sonner les alertes en continu jusqu'à leur acquittement ou leur ouverture.
 - Réglage d'un volume d'alerte dédié (avec curseur personnalisable), utilisant le flux d'alarme afin de garantir un son fort même si les notifications du téléphone sont basses.
+- Bouton de test de notification dans les paramètres pour vérifier le son, le volume et l'affichage des alertes en conditions réelles.
 
 ### Modifié
 - Affichage des alertes par date de création (la plus récente en haut) plutôt que par ordre de priorité.

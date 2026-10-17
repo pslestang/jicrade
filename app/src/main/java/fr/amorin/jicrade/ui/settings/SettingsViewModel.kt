@@ -195,6 +195,29 @@ class SettingsViewModel @Inject constructor(
         isPlayingPreview.value = false
     }
 
+    fun sendTestNotification() {
+        val prefs = state.value.settings
+        val dummyAlert = fr.amorin.jicrade.data.local.AlertEntity(
+            id = "test-alert-${System.currentTimeMillis()}",
+            tinyId = "999",
+            message = "Test alert: notifications are working properly",
+            status = "open",
+            priority = "P1",
+            createdAt = System.currentTimeMillis(),
+            updatedAt = System.currentTimeMillis(),
+            source = "Test",
+        )
+        Notifications.showNewAlert(
+            context = context,
+            alert = dummyAlert,
+            bypassDnd = prefs.overrideDnd,
+            soundUri = prefs.alertSoundUri?.let { android.net.Uri.parse(it) },
+            loop = false,
+            overrideVolume = prefs.overrideVolume,
+            alertVolume = prefs.alertVolume,
+        )
+    }
+
     override fun onCleared() {
         super.onCleared()
         stopSoundPreview()
