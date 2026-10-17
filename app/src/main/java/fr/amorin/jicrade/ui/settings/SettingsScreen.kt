@@ -61,6 +61,17 @@ import fr.amorin.jicrade.data.local.PollingMode
 import fr.amorin.jicrade.ui.common.formatDateTime
 import fr.amorin.jicrade.sync.Notifications
 
+import android.app.Activity
+import android.media.RingtoneManager
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Slider
+import androidx.compose.runtime.DisposableEffect
+import androidx.core.content.IntentCompat
+import kotlin.math.roundToInt
+
 private val intervals = listOf(30, 60, 120, 300)
 private val priorities = listOf("P1", "P2", "P3", "P4", "P5")
 private val notificationModes = listOf(NotificationMode.ON_CALL to "On call", NotificationMode.ALWAYS to "Always", NotificationMode.NEVER to "Never")
@@ -70,10 +81,41 @@ private val pollingModes = listOf(PollingMode.AUTO to "Auto", PollingMode.ON to 
 @Composable
 fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
+    val isPlayingPreview by vm.isPlayingPreview.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     var confirmLogout by remember { mutableStateOf(false) }
     LaunchedEffect(state.error) { state.error?.let { snackbar.showSnackbar(it); vm.clearError() } }
+
+    DisposableEffect(Unit) {
+        onDispose { vm.stopSoundPreview() }
+    }
+
+    val ringtoneTitle = remember(state.settings.alertSoundUri) {
+        Notifications.ringtoneTitle(context, state.settings.alertSoundUri)
+    }
+
+    val ringtoneLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val data = result.data ?: return@rememberLauncherForActivityResult
+            val uri = IntentCompat.getParcelableExtra(data, RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
+            vm.setAlertSoundUri(uri?.toString())
+        }
+    }
+
+    fun launchRingtonePicker() {
+        val currentUri = state.settings.alertSoundUri?.let { Uri.parse(it) }
+            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+        val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
+            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM or RingtoneManager.TYPE_NOTIFICATION or RingtoneManager.TYPE_RINGTONE)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Select alert ringtone")
+            putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, currentUri)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
+            putExtra(RingtoneManager.EXTRA_RINGTONE_DEFAULT_URI, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
+            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
+        }
+        ringtoneLauncher.launch(intent)
+    }
 
     var hasNotificationPermission by remember { mutableStateOf(Notifications.canPost(context)) }
     val pm = remember { context.getSystemService<PowerManager>() }
@@ -170,6 +212,73 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
             }
             HorizontalDivider()
             Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text("Sound & Volume", style = MaterialTheme.typography.labelLarge)
+            }
+            ListItem(
+                headlineContent = { Text("Alert ringtone") },
+                supportingContent = { Text(ringtoneTitle) },
+                trailingContent = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        IconButton(onClick = {
+                            if (isPlayingPreview) vm.stopSoundPreview() else vm.playSoundPreview()
+                        }) {
+                            Icon(
+                                if (isPlayingPreview) Icons.Default.Stop else Icons.Default.PlayArrow,
+                                contentDescription = if (isPlayingPreview) "Stop preview" else "Play preview",
+                                tint = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                        Icon(
+                            Icons.AutoMirrored.Filled.NavigateNext,
+                            contentDescription = "Change ringtone",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                },
+                modifier = Modifier.clickable { launchRingtonePicker() },
+            )
+            ListItem(
+                headlineContent = { Text("Repeat until acknowledged") },
+                supportingContent = { Text("Loops sound and vibration until you open or acknowledge the alert") },
+                trailingContent = {
+                    Switch(
+                        checked = state.settings.loopAlertSound,
+                        onCheckedChange = vm::setLoopAlertSound,
+                        enabled = notificationsOn,
+                    )
+                },
+            )
+            ListItem(
+                headlineContent = { Text("Override alarm volume") },
+                supportingContent = { Text(if (state.settings.overrideVolume) "Force alert volume regardless of device volume" else "Uses system alarm volume") },
+                trailingContent = {
+                    Switch(
+                        checked = state.settings.overrideVolume,
+                        onCheckedChange = vm::setOverrideVolume,
+                        enabled = notificationsOn,
+                    )
+                },
+            )
+            if (state.settings.overrideVolume) {
+                Column(Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("Alert volume", style = MaterialTheme.typography.bodyMedium)
+                        Text("${state.settings.alertVolume}%", style = MaterialTheme.typography.labelMedium)
+                    }
+                    Slider(
+                        value = state.settings.alertVolume.toFloat(),
+                        onValueChange = { vm.setAlertVolume(it.roundToInt()) },
+                        valueRange = 10f..100f,
+                        steps = 8,
+                    )
+                }
+            }
+            HorizontalDivider()
+            Column(Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
                 Text("Fast polling", style = MaterialTheme.typography.labelLarge)
                 SingleChoiceSegmentedButtonRow(Modifier.padding(top = 8.dp)) {
                     pollingModes.forEachIndexed { i, (mode, label) ->
@@ -236,13 +345,29 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
             }
             ListItem(
                 headlineContent = { Text("Notification channels") },
-                supportingContent = { Text("Change sound, vibration and Do-Not-Disturb override") },
-                modifier = Modifier.clickable {
-                    context.startActivity(
-                        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
-                            .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                supportingContent = { Text("Configure Android system-level channel settings") },
+                trailingContent = {
+                    Icon(
+                        Icons.AutoMirrored.Filled.NavigateNext,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                },
+                modifier = Modifier.clickable {
+                    val soundUri = state.settings.alertSoundUri?.let { Uri.parse(it) }
+                    val channelId = Notifications.alertChannelId(soundUri, bypassDnd = state.settings.overrideDnd)
+                    Notifications.ensureAlertChannels(context, soundUri)
+                    val channelIntent = Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
+                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        putExtra(Settings.EXTRA_CHANNEL_ID, channelId)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    val appIntent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    }
+                    runCatching { context.startActivity(channelIntent) }
+                        .onFailure { context.startActivity(appIntent) }
                 },
             )
             HorizontalDivider()
