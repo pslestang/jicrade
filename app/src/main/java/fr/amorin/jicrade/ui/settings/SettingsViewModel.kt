@@ -126,9 +126,10 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch { settingsStore.setAlertVolume(volume) }
     }
 
-    fun playSoundPreview() {
+    fun playSoundPreview(overrideUri: android.net.Uri? = null) {
         stopSoundPreview()
-        val uri = state.value.settings.alertSoundUri?.let { android.net.Uri.parse(it) }
+        val uri = overrideUri
+            ?: state.value.settings.alertSoundUri?.let { android.net.Uri.parse(it) }
             ?: android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM)
         val ringtone = runCatching { android.media.RingtoneManager.getRingtone(context, uri) }.getOrNull() ?: return
         ringtone.audioAttributes = android.media.AudioAttributes.Builder()
@@ -152,7 +153,7 @@ class SettingsViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            kotlinx.coroutines.delay(6000)
+            kotlinx.coroutines.delay(3000)
             if (previewRingtone == ringtone) {
                 stopSoundPreview()
             }

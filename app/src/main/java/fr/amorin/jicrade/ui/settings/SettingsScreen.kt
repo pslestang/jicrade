@@ -64,9 +64,6 @@ import fr.amorin.jicrade.sync.Notifications
 import android.app.Activity
 import android.media.RingtoneManager
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Slider
 import androidx.compose.runtime.DisposableEffect
 import androidx.core.content.IntentCompat
@@ -81,7 +78,6 @@ private val pollingModes = listOf(PollingMode.AUTO to "Auto", PollingMode.ON to 
 @Composable
 fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
     val state by vm.state.collectAsStateWithLifecycle()
-    val isPlayingPreview by vm.isPlayingPreview.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     var confirmLogout by remember { mutableStateOf(false) }
@@ -100,6 +96,7 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
             val data = result.data ?: return@rememberLauncherForActivityResult
             val uri = IntentCompat.getParcelableExtra(data, RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
             vm.setAlertSoundUri(uri?.toString())
+            vm.playSoundPreview(uri)
         }
     }
 
@@ -218,22 +215,11 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
                 headlineContent = { Text("Alert ringtone") },
                 supportingContent = { Text(ringtoneTitle) },
                 trailingContent = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        IconButton(onClick = {
-                            if (isPlayingPreview) vm.stopSoundPreview() else vm.playSoundPreview()
-                        }) {
-                            Icon(
-                                if (isPlayingPreview) Icons.Default.Stop else Icons.Default.PlayArrow,
-                                contentDescription = if (isPlayingPreview) "Stop preview" else "Play preview",
-                                tint = MaterialTheme.colorScheme.primary,
-                            )
-                        }
-                        Icon(
-                            Icons.AutoMirrored.Filled.NavigateNext,
-                            contentDescription = "Change ringtone",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    Icon(
+                        Icons.AutoMirrored.Filled.NavigateNext,
+                        contentDescription = "Change ringtone",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                 },
                 modifier = Modifier.clickable { launchRingtonePicker() },
             )
@@ -272,6 +258,7 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
                     Slider(
                         value = state.settings.alertVolume.toFloat(),
                         onValueChange = { vm.setAlertVolume(it.roundToInt()) },
+                        onValueChangeFinished = { vm.playSoundPreview() },
                         valueRange = 10f..100f,
                         steps = 8,
                     )
