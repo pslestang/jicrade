@@ -12,6 +12,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Option pour faire sonner les alertes en continu jusqu'à leur acquittement ou leur ouverture.
 - Réglage d'un volume d'alerte dédié (avec curseur personnalisable), utilisant le flux d'alarme afin de garantir un son fort même si les notifications du téléphone sont basses.
 
+### Modifié
+- Affichage des alertes par date de création (la plus récente en haut) plutôt que par ordre de priorité.
+
 ## [0.2.0] - 2026-10-15
 
 ### Added
