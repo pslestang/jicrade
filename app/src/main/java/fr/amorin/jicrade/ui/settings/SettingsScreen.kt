@@ -313,34 +313,6 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
                 )
             }
             ListItem(
-                headlineContent = { Text("Notification channels") },
-                supportingContent = { Text("Configure Android system-level channel settings") },
-                trailingContent = {
-                    Icon(
-                        Icons.AutoMirrored.Filled.NavigateNext,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                },
-                modifier = Modifier.clickable {
-                    val soundUri = state.settings.alertSoundUri?.let { Uri.parse(it) }
-                    val channelId = Notifications.alertChannelId(soundUri, bypassDnd = state.settings.overrideDnd)
-                    Notifications.ensureAlertChannels(context, soundUri)
-                    val channelIntent = Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS).apply {
-                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                        putExtra(Settings.EXTRA_CHANNEL_ID, channelId)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    val appIntent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    }
-                    runCatching { context.startActivity(channelIntent) }
-                        .onFailure { context.startActivity(appIntent) }
-                },
-            )
-            HorizontalDivider()
-            ListItem(
                 headlineContent = { Text("Log out", color = MaterialTheme.colorScheme.error) },
                 supportingContent = { Text("Removes the stored token and cached data") },
                 modifier = Modifier.clickable { confirmLogout = true },
