@@ -29,6 +29,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+data class RingtoneOption(val uri: String?, val title: String)
+
 data class SettingsState(
     val session: Session? = null,
     val settings: Settings = Settings(),
@@ -105,7 +107,34 @@ class SettingsViewModel @Inject constructor(
     }
 
     val isPlayingPreview = MutableStateFlow(false)
+    val ringtones = MutableStateFlow<List<RingtoneOption>?>(null)
     private var previewRingtone: android.media.Ringtone? = null
+
+    fun loadRingtones() {
+        if (ringtones.value != null) return
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val list = mutableListOf<RingtoneOption>()
+            val defaultUri = android.media.RingtoneManager.getDefaultUri(android.media.RingtoneManager.TYPE_ALARM)
+            val defaultTitle = runCatching { android.media.RingtoneManager.getRingtone(context, defaultUri)?.getTitle(context) }.getOrNull() ?: "Default alarm"
+            list.add(RingtoneOption(uri = null, title = "Default alarm ($defaultTitle)"))
+
+            val manager = android.media.RingtoneManager(context).apply {
+                setType(android.media.RingtoneManager.TYPE_ALARM or android.media.RingtoneManager.TYPE_NOTIFICATION or android.media.RingtoneManager.TYPE_RINGTONE)
+            }
+            runCatching {
+                val cursor = manager.cursor
+                while (cursor.moveToNext()) {
+                    val title = cursor.getString(android.media.RingtoneManager.TITLE_COLUMN_INDEX)
+                    val uri = manager.getRingtoneUri(cursor.position)
+                    if (title != null && uri != null) {
+                        list.add(RingtoneOption(uri = uri.toString(), title = title))
+                    }
+                }
+            }
+            val distinct = list.distinctBy { it.title }
+            ringtones.value = distinct
+        }
+    }
 
     fun setAlertSoundUri(uri: String?) {
         viewModelScope.launch {

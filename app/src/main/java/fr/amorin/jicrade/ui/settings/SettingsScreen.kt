@@ -8,11 +8,13 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -21,6 +23,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.NavigateNext
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -61,12 +64,10 @@ import fr.amorin.jicrade.data.local.PollingMode
 import fr.amorin.jicrade.ui.common.formatDateTime
 import fr.amorin.jicrade.sync.Notifications
 
-import android.app.Activity
 import android.media.RingtoneManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.material3.Slider
 import androidx.compose.runtime.DisposableEffect
-import androidx.core.content.IntentCompat
 import kotlin.math.roundToInt
 
 private val intervals = listOf(30, 60, 120, 300)
@@ -81,6 +82,7 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
     val context = LocalContext.current
     val snackbar = remember { SnackbarHostState() }
     var confirmLogout by remember { mutableStateOf(false) }
+    var showRingtoneDialog by remember { mutableStateOf(false) }
     LaunchedEffect(state.error) { state.error?.let { snackbar.showSnackbar(it); vm.clearError() } }
 
     DisposableEffect(Unit) {
@@ -89,29 +91,6 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
 
     val ringtoneTitle = remember(state.settings.alertSoundUri) {
         Notifications.ringtoneTitle(context, state.settings.alertSoundUri)
-    }
-
-    val ringtoneLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode == Activity.RESULT_OK) {
-            val data = result.data ?: return@rememberLauncherForActivityResult
-            val uri = IntentCompat.getParcelableExtra(data, RingtoneManager.EXTRA_RINGTONE_PICKED_URI, Uri::class.java)
-            vm.setAlertSoundUri(uri?.toString())
-            vm.playSoundPreview(uri)
-        }
-    }
-
-    fun launchRingtonePicker() {
-        val currentUri = state.settings.alertSoundUri?.let { Uri.parse(it) }
-            ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-        val intent = Intent(RingtoneManager.ACTION_RINGTONE_PICKER).apply {
-            putExtra(RingtoneManager.EXTRA_RINGTONE_TYPE, RingtoneManager.TYPE_ALARM or RingtoneManager.TYPE_NOTIFICATION or RingtoneManager.TYPE_RINGTONE)
-            putExtra(RingtoneManager.EXTRA_RINGTONE_TITLE, "Select alert ringtone")
-            putExtra(RingtoneManager.EXTRA_RINGTONE_EXISTING_URI, currentUri)
-            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_DEFAULT, true)
-            putExtra(RingtoneManager.EXTRA_RINGTONE_DEFAULT_URI, RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM))
-            putExtra(RingtoneManager.EXTRA_RINGTONE_SHOW_SILENT, false)
-        }
-        ringtoneLauncher.launch(intent)
     }
 
     var hasNotificationPermission by remember { mutableStateOf(Notifications.canPost(context)) }
@@ -221,7 +200,10 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 },
-                modifier = Modifier.clickable { launchRingtonePicker() },
+                modifier = Modifier.clickable {
+                    vm.loadRingtones()
+                    showRingtoneDialog = true
+                },
             )
             ListItem(
                 headlineContent = { Text("Repeat until acknowledged") },
@@ -442,6 +424,84 @@ fun SettingsScreen(vm: SettingsViewModel = hiltViewModel()) {
                     Text("Cancel")
                 }
             },
+        )
+    }
+
+    if (showRingtoneDialog) {
+        val availableRingtones by vm.ringtones.collectAsStateWithLifecycle()
+        var selectedUri by remember { mutableStateOf(state.settings.alertSoundUri) }
+
+        AlertDialog(
+            onDismissRequest = {
+                vm.stopSoundPreview()
+                showRingtoneDialog = false
+            },
+            title = { Text("Alert ringtone") },
+            text = {
+                if (availableRingtones == null) {
+                    Box(Modifier.fillMaxWidth().padding(vertical = 24.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                } else {
+                    Column(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(max = 400.dp)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        availableRingtones?.forEach { item ->
+                            val isSelected = (item.uri == selectedUri) || (item.uri == null && selectedUri == null)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .selectable(
+                                        selected = isSelected,
+                                        onClick = {
+                                            selectedUri = item.uri
+                                            val uriToPlay = item.uri?.let { Uri.parse(it) }
+                                                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                                            vm.playSoundPreview(uriToPlay)
+                                        },
+                                        role = Role.RadioButton,
+                                    )
+                                    .padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                RadioButton(
+                                    selected = isSelected,
+                                    onClick = null,
+                                )
+                                Spacer(Modifier.width(12.dp))
+                                Text(
+                                    text = item.title,
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        vm.stopSoundPreview()
+                        vm.setAlertSoundUri(selectedUri)
+                        showRingtoneDialog = false
+                    }
+                ) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        vm.stopSoundPreview()
+                        showRingtoneDialog = false
+                    }
+                ) { Text("Cancel") }
+            },
+            properties = DialogProperties(usePlatformDefaultWidth = false),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
         )
     }
 }
